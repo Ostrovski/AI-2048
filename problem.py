@@ -1,7 +1,14 @@
 from collections import namedtuple
 
 
-Cell = namedtuple('Cell', ('x', 'y', 'v'))
+class Cell:
+    def __init__(self, x, y, v):
+        self.x = x
+        self.y = y
+        self.v = v
+
+    def __str__(self):
+        return "(%s, %s): %s" % (self.x, self.y, self.v)
 
 
 class Field:
@@ -23,14 +30,67 @@ class Field:
             return self._cells[len(self._cells) - self._iter_offset - 1]
         raise StopIteration()
 
-    def column(self, n):
-        return [c for c in self._cells if c.x == n]
+    @property
+    def cells(self):
+        cells, row = [], []
+        for idx, c in enumerate(self._cells):
+            row.append(c.v)
+            if self._dim_x - 1 == idx % self._dim_x:
+                cells.append(tuple(row))
+                row = []
+        return tuple(cells)
+
+    def move_down(self):
+        self._move('d')
 
     def move_left(self):
-        pass
+        self._move('l')
 
-    def row(self, n):
-        return [c for c in self._cells if c.y == n]
+    def move_right(self):
+        self._move('r')
+
+    def move_up(self):
+        self._move('u')
+
+    def _move(self, direction):
+        assert direction in ('l', 'r', 'u', 'd')
+        rows_count = self._dim_y if direction in ('l', 'r') else self._dim_x
+        cols_count = self._dim_x if direction in ('l', 'r') else self._dim_y
+        x_start = 0
+        x_end = cols_count - 1
+        offset = 1
+        if direction in ('r', 'd'):
+            x_start, x_end = x_end, x_start
+            offset = -offset
+
+        def shift(row):
+            x, skip = x_start, 0
+            while 0 < abs(x - x_end):
+                x += offset
+                ct = self._cell(x_start + skip, row, offset < 0)
+                cf = self._cell(x, row, offset < 0)
+                if 0 == ct.v:
+                    ct.v, cf.v = cf.v, 0
+                if 0 != ct.v:
+                    skip += offset
+
+        def merge(row):
+            x = x_start
+            while 0 < abs(x - x_end) and 0 != self._cell(x, row, offset < 0).v:
+                ct = self._cell(x, row, offset < 0)
+                cf = self._cell(x + offset, row, offset < 0)
+                if 0 == ct.v or ct.v == cf.v:
+                    ct.v, cf.v = ct.v + cf.v, 0
+                    x += offset
+                x += offset
+
+        for y in range(rows_count):
+            shift(y)
+            merge(y)
+            shift(y)
+
+    def _cell(self, x, y, reverse=True):
+        return self._cells[y*(self._dim_y if reverse else self._dim_x) + x]
 
 State = namedtuple('State', ('score', 'field'))
 
